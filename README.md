@@ -51,6 +51,32 @@ See the [download page](https://ghostty.org/download) on the Ghostty website.
 
 See the [documentation](https://ghostty.org/docs) on the Ghostty website.
 
+## Windows work in this fork
+
+This fork carries substantial Windows runtime and embedding work used by the `cmux` parity program in the parent workspace.
+
+Concretely, this fork now includes:
+
+- a Win32 app runtime in [`src/apprt/windows.zig`](./src/apprt/windows.zig)
+- Windows runtime selection through [`src/apprt/runtime.zig`](./src/apprt/runtime.zig)
+- Windows clipboard, deferred char fallback, and IME composition handling in the Win32 runtime
+- public Windows embedding surface updates in [`include/ghostty.h`](./include/ghostty.h) and [`src/apprt/embedded.zig`](./src/apprt/embedded.zig)
+- a narrowed VT seam and smoke test support in:
+  - [`src/lib_vt.zig`](./src/lib_vt.zig)
+  - [`src/terminal/public_vt.zig`](./src/terminal/public_vt.zig)
+  - [`test/lib_vt_smoke.zig`](./test/lib_vt_smoke.zig)
+
+The main validation commands used in this fork have been:
+
+```powershell
+zig build -j1
+zig build test-lib-vt-smoke
+zig build test-lib-vt
+zig build -Dapp-runtime=none -j1
+```
+
+This section documents fork-specific work only. It should not be read as an upstream project-status claim unless and until those changes are accepted upstream.
+
 ## Contributing and Developing
 
 If you have any ideas, issues, etc. regarding Ghostty, or would like to
