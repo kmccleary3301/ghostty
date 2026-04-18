@@ -9,7 +9,9 @@ const testing = std.testing;
 pub fn expand(alloc: Allocator, cmd: []const u8) !?[]u8 {
     // If the command already contains a slash, then we return it as-is
     // because it is assumed to be absolute or relative.
-    if (std.mem.indexOfScalar(u8, cmd, '/') != null) {
+    if (std.mem.indexOfScalar(u8, cmd, '/') != null or
+        std.mem.indexOfScalar(u8, cmd, '\\') != null)
+    {
         return try alloc.dupe(u8, cmd);
     }
 

@@ -1,22 +1,116 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <dirent.h>
 #include <sys/stat.h>
 #include <errno.h>
 #include <zlib.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <dirent.h>
+#endif
+
 #define SEPARATOR '\x01'
 #define CHUNK_SIZE 16384
 
-static int filter_frames(const struct dirent *entry) {
-    const char *name = entry->d_name;
-    size_t len = strlen(name);
-    return len > 4 && strcmp(name + len - 4, ".txt") == 0;
+static int compare_names(const void *a, const void *b) {
+    const char *const *sa = (const char *const *)a;
+    const char *const *sb = (const char *const *)b;
+    return strcmp(*sa, *sb);
 }
 
-static int compare_frames(const struct dirent **a, const struct dirent **b) {
-    return strcmp((*a)->d_name, (*b)->d_name);
+static char *dup_string(const char *src) {
+    size_t len = strlen(src) + 1;
+    char *copy = malloc(len);
+    if (!copy) {
+        return NULL;
+    }
+    memcpy(copy, src, len);
+    return copy;
+}
+
+static int collect_frames(const char *frames_dir, char ***out_names) {
+    char **names = NULL;
+    size_t count = 0;
+    size_t cap = 0;
+
+#ifdef _WIN32
+    char pattern[4096];
+    snprintf(pattern, sizeof(pattern), "%s\\*.txt", frames_dir);
+
+    WIN32_FIND_DATAA data;
+    HANDLE handle = FindFirstFileA(pattern, &data);
+    if (handle == INVALID_HANDLE_VALUE) {
+        return -1;
+    }
+
+    do {
+        if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            continue;
+        }
+
+        if (count == cap) {
+            size_t next_cap = cap == 0 ? 16 : cap * 2;
+            char **next = realloc(names, next_cap * sizeof(char *));
+            if (!next) {
+                FindClose(handle);
+                free(names);
+                return -1;
+            }
+            names = next;
+            cap = next_cap;
+        }
+
+        names[count] = dup_string(data.cFileName);
+        if (!names[count]) {
+            FindClose(handle);
+            free(names);
+            return -1;
+        }
+        count++;
+    } while (FindNextFileA(handle, &data));
+    FindClose(handle);
+#else
+    DIR *dir = opendir(frames_dir);
+    if (!dir) {
+        return -1;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        const char *name = entry->d_name;
+        size_t len = strlen(name);
+        if (!(len > 4 && strcmp(name + len - 4, ".txt") == 0)) {
+            continue;
+        }
+
+        if (count == cap) {
+            size_t next_cap = cap == 0 ? 16 : cap * 2;
+            char **next = realloc(names, next_cap * sizeof(char *));
+            if (!next) {
+                closedir(dir);
+                free(names);
+                return -1;
+            }
+            names = next;
+            cap = next_cap;
+        }
+
+        names[count] = dup_string(name);
+        if (!names[count]) {
+            closedir(dir);
+            free(names);
+            return -1;
+        }
+        count++;
+    }
+    closedir(dir);
+#endif
+
+    qsort(names, count, sizeof(char *), compare_names);
+    *out_names = names;
+    return (int)count;
 }
 
 static char *read_file(const char *path, size_t *out_size) {
@@ -54,8 +148,8 @@ int main(int argc, char **argv) {
     const char *frames_dir = argv[1];
     const char *output_file = argv[2];
 
-    struct dirent **namelist;
-    int n = scandir(frames_dir, &namelist, filter_frames, compare_frames);
+    char **namelist;
+    int n = collect_frames(frames_dir, &namelist);
     if (n < 0) {
         fprintf(stderr, "Failed to scan directory %s: %s\n", frames_dir, strerror(errno));
         return 1;
@@ -72,7 +166,7 @@ int main(int argc, char **argv) {
 
     for (int i = 0; i < n; i++) {
         char path[4096];
-        snprintf(path, sizeof(path), "%s/%s", frames_dir, namelist[i]->d_name);
+        snprintf(path, sizeof(path), "%s/%s", frames_dir, namelist[i]);
         
         frame_contents[i] = read_file(path, &frame_sizes[i]);
         if (!frame_contents[i]) {
@@ -140,6 +234,11 @@ int main(int argc, char **argv) {
     }
 
     fclose(out);
+
+    for (int i = 0; i < n; i++) {
+        free(namelist[i]);
+    }
+    free(namelist);
 
     return 0;
 }

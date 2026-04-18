@@ -4636,6 +4636,7 @@ pub fn finalize(self: *Config) !void {
                     .true,
             }
         },
+        .windows => {},
     }
 
     // Default our click interval
@@ -9027,6 +9028,7 @@ pub const GtkTitlebarStyle = enum(c_int) {
         ),
 
         .none => void,
+        .windows => void,
     };
 };
 
@@ -9742,6 +9744,7 @@ pub const WindowDecoration = enum(c_int) {
         ),
 
         .none => void,
+        .windows => void,
     };
 
     pub fn parseCLI(input_: ?[]const u8) !WindowDecoration {

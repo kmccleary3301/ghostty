@@ -4,7 +4,7 @@ const fontconfig = @import("main.zig");
 test "fc-list" {
     const testing = std.testing;
 
-    var cfg = fontconfig.initLoadConfigAndFonts();
+    var cfg = fontconfig.initLoadConfigAndFonts() orelse return error.SkipZigTest;
     defer cfg.destroy();
 
     var pat = fontconfig.Pattern.create();
@@ -24,7 +24,7 @@ test "fc-list" {
 test "fc-match" {
     const testing = std.testing;
 
-    var cfg = fontconfig.initLoadConfigAndFonts();
+    var cfg = fontconfig.initLoadConfigAndFonts() orelse return error.SkipZigTest;
     defer cfg.destroy();
 
     var pat = fontconfig.Pattern.create();

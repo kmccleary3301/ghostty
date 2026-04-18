@@ -6,6 +6,7 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+const windows = std.os.windows;
 const assert = @import("../quirks.zig").inlineAssert;
 const Allocator = std.mem.Allocator;
 const objc = @import("objc");
@@ -343,6 +344,7 @@ pub const App = struct {
 pub const Platform = union(PlatformTag) {
     macos: MacOS,
     ios: IOS,
+    windows: Windows,
 
     // If our build target for libghostty is not darwin then we do
     // not include macos support at all.
@@ -356,6 +358,11 @@ pub const Platform = union(PlatformTag) {
         uiview: objc.Object,
     } else void;
 
+    pub const Windows = if (builtin.target.os.tag == .windows) struct {
+        /// The HWND this surface should target.
+        hwnd: windows.HWND,
+    } else void;
+
     // The C ABI compatible version of this union. The tag is expected
     // to be stored elsewhere.
     pub const C = extern union {
@@ -365,6 +372,10 @@ pub const Platform = union(PlatformTag) {
 
         ios: extern struct {
             uiview: ?*anyopaque,
+        },
+
+        windows: extern struct {
+            hwnd: ?*anyopaque,
         },
     };
 
@@ -385,6 +396,13 @@ pub const Platform = union(PlatformTag) {
                     break :ios error.UIViewMustBeSet);
                 break :ios .{ .ios = .{ .uiview = uiview } };
             } else error.UnsupportedPlatform,
+
+            .windows => if (Windows != void) windows_: {
+                const config = c_platform.windows;
+                const hwnd: windows.HWND = @ptrCast(config.hwnd orelse
+                    break :windows_ error.HWNDMustBeSet);
+                break :windows_ .{ .windows = .{ .hwnd = hwnd } };
+            } else error.UnsupportedPlatform,
         };
     }
 };
@@ -395,6 +413,7 @@ pub const PlatformTag = enum(c_int) {
 
     macos = 1,
     ios = 2,
+    windows = 3,
 };
 
 pub const EnvVar = extern struct {
@@ -406,6 +425,9 @@ pub const EnvVar = extern struct {
 };
 
 pub const Surface = struct {
+    const SurfaceUD = ?*anyopaque;
+    const SurfaceCallback = *const fn (SurfaceUD) callconv(.c) bool;
+
     app: *App,
     platform: Platform,
     userdata: ?*anyopaque = null,
@@ -414,6 +436,8 @@ pub const Surface = struct {
     size: apprt.SurfaceSize,
     cursor_pos: apprt.CursorPos,
     inspector: ?*Inspector = null,
+    make_current_cb: ?SurfaceCallback = null,
+    swap_buffers_cb: ?SurfaceCallback = null,
 
     /// The current title of the surface. The embedded apprt saves this so
     /// that getTitle works without the implementer needing to save it.
@@ -428,6 +452,12 @@ pub const Surface = struct {
 
         /// Userdata passed to some of the callbacks.
         userdata: ?*anyopaque = null,
+
+        /// Make the host GL context current for this surface.
+        make_current: ?SurfaceCallback = null,
+
+        /// Present the host GL surface for this surface.
+        swap_buffers: ?SurfaceCallback = null,
 
         /// The scale factor of the screen.
         scale_factor: f64 = 1,
@@ -474,6 +504,8 @@ pub const Surface = struct {
             },
             .size = .{ .width = 800, .height = 600 },
             .cursor_pos = .{ .x = -1, .y = -1 },
+            .make_current_cb = opts.make_current,
+            .swap_buffers_cb = opts.swap_buffers,
         };
 
         // Add ourselves to the list of surfaces on the app.
@@ -808,6 +840,16 @@ pub const Surface = struct {
             log.err("error in size callback err={}", .{err});
             return;
         };
+    }
+
+    pub fn makeCurrent(self: *Surface) !void {
+        const callback = self.make_current_cb orelse return error.MakeCurrentUnsupported;
+        if (!callback(self.userdata)) return error.MakeCurrentFailed;
+    }
+
+    pub fn swapBuffers(self: *Surface) !void {
+        const callback = self.swap_buffers_cb orelse return error.SwapBuffersUnsupported;
+        if (!callback(self.userdata)) return error.SwapBuffersFailed;
     }
 
     pub fn colorSchemeCallback(self: *Surface, scheme: apprt.ColorScheme) void {

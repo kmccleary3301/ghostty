@@ -528,15 +528,23 @@ pub fn add(
         }
     }
 
-    // If we're building an exe then we have additional dependencies.
-    if (step.kind != .lib) {
-        // We always statically compile glad
+    const needs_glad =
+        step.kind != .lib or
+        (self.config.app_runtime == .none and self.config.target.result.os.tag == .windows);
+
+    if (needs_glad) {
+        // We statically compile glad for executable builds and for the
+        // current Windows libghostty path, which otherwise leaves the
+        // OpenGL loader unresolved in app-runtime=none builds.
         step.addIncludePath(b.path("vendor/glad/include/"));
         step.addCSourceFile(.{
             .file = b.path("vendor/glad/src/gl.c"),
             .flags = &.{},
         });
+    }
 
+    // If we're building an exe then we have additional dependencies.
+    if (step.kind != .lib) {
         // When we're targeting flatpak we ALWAYS link GTK so we
         // get access to glib for dbus.
         if (self.config.flatpak) step.linkSystemLibrary2("gtk4", dynamic_link_opts);
@@ -544,6 +552,7 @@ pub fn add(
         switch (self.config.app_runtime) {
             .none => {},
             .gtk => try self.addGtkNg(step),
+            .windows => {},
         }
     }
 

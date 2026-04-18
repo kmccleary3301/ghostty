@@ -9,8 +9,24 @@ const Result = @import("main.zig").Result;
 const MatchKind = @import("main.zig").MatchKind;
 
 pub const Config = opaque {
+    pub fn create() ?*Config {
+        return @as(?*Config, @ptrCast(c.FcConfigCreate()));
+    }
+
     pub fn destroy(self: *Config) void {
         c.FcConfigDestroy(@ptrCast(self));
+    }
+
+    pub fn setCurrent(self: *Config) bool {
+        return c.FcConfigSetCurrent(self.cval()) == c.FcTrue;
+    }
+
+    pub fn buildFonts(self: *Config) bool {
+        return c.FcConfigBuildFonts(self.cval()) == c.FcTrue;
+    }
+
+    pub fn appFontAddDir(self: *Config, dir: [:0]const u8) bool {
+        return c.FcConfigAppFontAddDir(self.cval(), dir.ptr) == c.FcTrue;
     }
 
     pub fn fontList(self: *Config, pat: *Pattern, os: *ObjectSet) *FontSet {

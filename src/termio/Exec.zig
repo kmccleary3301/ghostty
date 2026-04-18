@@ -236,6 +236,11 @@ pub fn focusGained(
     assert(td.backend == .exec);
     const execdata = &td.backend.exec;
 
+    if (comptime builtin.os.tag == .windows) {
+        execdata.termios_timer_running = false;
+        return;
+    }
+
     if (!focused) {
         // Flag the timer to end on the next iteration. This is
         // a lot cheaper than doing full timer cancellation.
@@ -581,6 +586,7 @@ const Subprocess = struct {
     arena: std.heap.ArenaAllocator,
     cwd: ?[:0]const u8,
     env: ?EnvMap,
+    executable_path: [:0]const u8,
     args: []const [:0]const u8,
     grid_size: renderer.GridSize,
     screen_size: renderer.ScreenSize,
@@ -846,6 +852,14 @@ const Subprocess = struct {
         else
             null;
 
+        const executable_path: [:0]const u8 = if (comptime builtin.os.tag == .windows)
+            executable_path: {
+                const expanded = try internal_os.path.expand(alloc, args[0]) orelse args[0];
+                break :executable_path try alloc.dupeZ(u8, expanded);
+            }
+        else
+            args[0];
+
         // Propagate the current working directory (CWD) to the shell, enabling
         // the shell to display the current directory name rather than the
         // resolved path for symbolic links. This is important and based
@@ -859,6 +873,7 @@ const Subprocess = struct {
             .arena = arena,
             .env = env,
             .cwd = cwd,
+            .executable_path = executable_path,
             .args = args,
 
             .rt_pre_exec_info = cfg.rt_pre_exec_info,
@@ -1003,7 +1018,7 @@ const Subprocess = struct {
 
         // Build our subcommand
         var cmd: Command = .{
-            .path = self.args[0],
+            .path = self.executable_path,
             .args = self.args,
             .env = if (self.env) |*env| env else null,
             .cwd = cwd,

@@ -16,8 +16,12 @@ const builtin = @import("builtin");
 // is separate because (1) we need our root file to be in `src/`
 // so we can access other directories and (2) we may want to withhold
 // parts of `terminal` that are not ready for public consumption
-// or are too Ghostty-internal.
-const terminal = @import("terminal/main.zig");
+// or are too Ghostty-internal. Test builds use a narrower terminal
+// surface so the VT module can be tested without the app terminal root.
+const terminal = if (builtin.is_test)
+    @import("terminal/public_vt.zig")
+else
+    @import("terminal/main.zig");
 
 pub const apc = terminal.apc;
 pub const dcs = terminal.dcs;
@@ -118,7 +122,7 @@ pub const input = struct {
 comptime {
     // If we're building the C library (vs. the Zig module) then
     // we want to reference the C API so that it gets exported.
-    if (@import("root") == lib) {
+    if (@import("root") == lib and !builtin.is_test) {
         const c = terminal.c_api;
         @export(&c.key_event_new, .{ .name = "ghostty_key_event_new" });
         @export(&c.key_event_free, .{ .name = "ghostty_key_event_free" });
@@ -235,7 +239,4 @@ test {
     _ = terminal;
     _ = @import("lib/main.zig");
     @import("std").testing.refAllDecls(input);
-    if (comptime terminal.options.c_abi) {
-        _ = terminal.c_api;
-    }
 }

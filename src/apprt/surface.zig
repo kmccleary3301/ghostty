@@ -127,6 +127,7 @@ pub const Message = union(enum) {
             ),
 
             .none => void,
+            .windows => void,
         };
     };
 };

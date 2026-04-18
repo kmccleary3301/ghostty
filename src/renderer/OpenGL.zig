@@ -45,6 +45,9 @@ blending: configpkg.Config.AlphaBlending,
 /// The most recently presented target, in case we need to present it again.
 last_target: ?Target = null,
 
+/// The apprt surface associated with this renderer instance.
+surface: ?*apprt.Surface = null,
+
 /// NOTE: This is an error{}!OpenGL instead of just OpenGL for parity with
 ///       Metal, since it needs to be fallible so does this, even though it
 ///       can't actually fail.
@@ -52,6 +55,7 @@ pub fn init(alloc: Allocator, opts: rendererpkg.Options) error{}!OpenGL {
     return .{
         .alloc = alloc,
         .blending = opts.config.blending,
+        .surface = opts.rt_surface,
     };
 }
 
@@ -160,8 +164,6 @@ fn prepareContext(getProcAddress: anytype) !void {
 
 /// This is called early right after surface creation.
 pub fn surfaceInit(surface: *apprt.Surface) !void {
-    _ = surface;
-
     switch (apprt.runtime) {
         else => @compileError("unsupported app runtime for OpenGL"),
 
@@ -169,10 +171,17 @@ pub fn surfaceInit(surface: *apprt.Surface) !void {
         apprt.gtk,
         => try prepareContext(null),
 
-        apprt.embedded => {
-            // TODO(mitchellh): this does nothing today to allow libghostty
-            // to compile for OpenGL targets but libghostty is strictly
-            // broken for rendering on this platforms.
+        apprt.embedded,
+        => {
+            if (builtin.os.tag == .windows) {
+                try surface.makeCurrent();
+                try prepareContext(&apprt.windows.glGetProcAddress);
+            }
+        },
+
+        apprt.windows => {
+            try surface.glSurfaceInit();
+            try prepareContext(&apprt.windows.glGetProcAddress);
         },
     }
 
@@ -191,12 +200,17 @@ pub fn surfaceInit(surface: *apprt.Surface) !void {
 pub fn finalizeSurfaceInit(self: *const OpenGL, surface: *apprt.Surface) !void {
     _ = self;
     _ = surface;
+
+    switch (apprt.runtime) {
+        apprt.embedded => if (builtin.os.tag == .windows) apprt.windows.clearCurrentContext(),
+        apprt.windows => apprt.windows.clearCurrentContext(),
+        else => {},
+    }
 }
 
 /// Callback called by renderer.Thread when it begins.
 pub fn threadEnter(self: *const OpenGL, surface: *apprt.Surface) !void {
-    _ = self;
-    _ = surface;
+    @constCast(self).surface = surface;
 
     switch (apprt.runtime) {
         else => @compileError("unsupported app runtime for OpenGL"),
@@ -208,17 +222,22 @@ pub fn threadEnter(self: *const OpenGL, surface: *apprt.Surface) !void {
             // on the main thread. As such, we don't do anything here.
         },
 
-        apprt.embedded => {
-            // TODO(mitchellh): this does nothing today to allow libghostty
-            // to compile for OpenGL targets but libghostty is strictly
-            // broken for rendering on this platforms.
+        apprt.embedded,
+        apprt.windows,
+        => {
+            // Keep the surface pointer around so Windows can bind the
+            // correct drawable on the renderer thread.
+            if (builtin.os.tag == .windows) {
+                try surface.makeCurrent();
+                try prepareContext(&apprt.windows.glGetProcAddress);
+            }
         },
     }
 }
 
 /// Callback called by renderer.Thread when it exits.
 pub fn threadExit(self: *const OpenGL) void {
-    _ = self;
+    @constCast(self).surface = null;
 
     switch (apprt.runtime) {
         else => @compileError("unsupported app runtime for OpenGL"),
@@ -228,8 +247,10 @@ pub fn threadExit(self: *const OpenGL) void {
             // be sharing the global bindings with other windows.
         },
 
-        apprt.embedded => {
-            // TODO: see threadEnter
+        apprt.embedded,
+        apprt.windows,
+        => {
+            if (builtin.os.tag == .windows) apprt.windows.clearCurrentContext();
         },
     }
 }
@@ -277,12 +298,20 @@ pub fn initShaders(
 
 /// Get the current size of the runtime surface.
 pub fn surfaceSize(self: *const OpenGL) !struct { width: u32, height: u32 } {
-    _ = self;
     var viewport: [4]gl.c.GLint = undefined;
     gl.glad.context.GetIntegerv.?(gl.c.GL_VIEWPORT, &viewport);
+    if (viewport[2] <= 0 or viewport[3] <= 0) {
+        if (self.surface) |surface| {
+            const size = try surface.getSize();
+            return .{
+                .width = size.width,
+                .height = size.height,
+            };
+        }
+    }
     return .{
-        .width = @intCast(viewport[2]),
-        .height = @intCast(viewport[3]),
+        .width = @intCast(@max(viewport[2], 0)),
+        .height = @intCast(@max(viewport[3], 0)),
     };
 }
 
@@ -328,6 +357,10 @@ pub fn present(self: *OpenGL, target: Target) !void {
 
     // Keep track of this target in case we need to repeat it.
     self.last_target = target;
+
+    if (builtin.os.tag == .windows) {
+        if (self.surface) |surface| try surface.swapBuffers();
+    }
 }
 
 /// Present the last presented target again.

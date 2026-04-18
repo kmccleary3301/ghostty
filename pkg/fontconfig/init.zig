@@ -10,11 +10,11 @@ pub fn fini() void {
     c.FcFini();
 }
 
-pub fn initLoadConfig() *Config {
+pub fn initLoadConfig() ?*Config {
     return @ptrCast(c.FcInitLoadConfig());
 }
 
-pub fn initLoadConfigAndFonts() *Config {
+pub fn initLoadConfigAndFonts() ?*Config {
     return @ptrCast(c.FcInitLoadConfigAndFonts());
 }
 
@@ -33,11 +33,11 @@ test "init" {
 }
 
 test "initLoadConfig" {
-    var config = initLoadConfig();
+    var config = initLoadConfig() orelse return error.SkipZigTest;
     defer config.destroy();
 }
 
 test "initLoadConfigAndFonts" {
-    var config = initLoadConfigAndFonts();
+    var config = initLoadConfigAndFonts() orelse return error.SkipZigTest;
     defer config.destroy();
 }

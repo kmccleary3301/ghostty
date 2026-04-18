@@ -38,6 +38,7 @@ typedef enum {
   GHOSTTY_PLATFORM_INVALID,
   GHOSTTY_PLATFORM_MACOS,
   GHOSTTY_PLATFORM_IOS,
+  GHOSTTY_PLATFORM_WINDOWS,
 } ghostty_platform_e;
 
 typedef enum {
@@ -49,6 +50,9 @@ typedef struct {
   const char *mime;
   const char *data;
 } ghostty_clipboard_content_s;
+
+typedef bool (*ghostty_surface_make_current_cb)(void*);
+typedef bool (*ghostty_surface_swap_buffers_cb)(void*);
 
 typedef enum {
   GHOSTTY_CLIPBOARD_REQUEST_PASTE,
@@ -426,9 +430,14 @@ typedef struct {
   void* uiview;
 } ghostty_platform_ios_s;
 
+typedef struct {
+  void* hwnd;
+} ghostty_platform_windows_s;
+
 typedef union {
   ghostty_platform_macos_s macos;
   ghostty_platform_ios_s ios;
+  ghostty_platform_windows_s windows;
 } ghostty_platform_u;
 
 typedef enum {
@@ -441,6 +450,8 @@ typedef struct {
   ghostty_platform_e platform_tag;
   ghostty_platform_u platform;
   void* userdata;
+  ghostty_surface_make_current_cb make_current;
+  ghostty_surface_swap_buffers_cb swap_buffers;
   double scale_factor;
   float font_size;
   const char* working_directory;

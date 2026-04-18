@@ -258,7 +258,6 @@ fn threadMain_(self: *Thread) !void {
 
     // Run
     log.debug("starting renderer thread", .{});
-    defer log.debug("starting renderer thread shutdown", .{});
     _ = try self.loop.run(.until_done);
 }
 

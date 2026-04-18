@@ -683,6 +683,7 @@ pub const InitialSize = extern struct {
         ),
 
         .none => void,
+        .windows => void,
     };
 };
 

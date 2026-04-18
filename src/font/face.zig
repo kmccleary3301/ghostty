@@ -65,6 +65,7 @@ pub const DesiredSize = struct {
         ),
 
         .none => void,
+        .windows => void,
     };
 };
 

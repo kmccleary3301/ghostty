@@ -944,6 +944,7 @@ pub const Action = union(enum) {
         ),
 
         .none => void,
+        .windows => void,
     };
 
     pub const CrashThread = enum {

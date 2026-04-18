@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const builtin = @import("builtin");
 const assert = @import("../quirks.zig").inlineAssert;
 const fontconfig = @import("fontconfig");
 const macos = @import("macos");
@@ -245,7 +246,17 @@ pub const Fontconfig = struct {
     pub fn init() Fontconfig {
         // safe to call multiple times and concurrently
         _ = fontconfig.init();
-        return .{ .fc_config = fontconfig.initLoadConfigAndFonts() };
+        if (fontconfig.initLoadConfigAndFonts()) |config| {
+            return .{ .fc_config = config };
+        }
+
+        if (builtin.target.os.tag == .windows) {
+            if (initWindowsFallbackConfig()) |config| {
+                return .{ .fc_config = config };
+            }
+        }
+
+        @panic("fontconfig initialization failed");
     }
 
     pub fn deinit(self: *Fontconfig) void {
@@ -330,6 +341,35 @@ pub const Fontconfig = struct {
             };
         }
     };
+
+    fn initWindowsFallbackConfig() ?*fontconfig.Config {
+        const windows_font_dir: [:0]const u8 = "C:\\Windows\\Fonts";
+
+        const config = fontconfig.Config.create() orelse {
+            log.warn("fontconfig fallback config creation failed on Windows", .{});
+            return null;
+        };
+
+        errdefer config.destroy();
+
+        if (!config.appFontAddDir(windows_font_dir)) {
+            log.warn("fontconfig fallback could not add Windows font directory: {s}", .{windows_font_dir});
+            return null;
+        }
+
+        if (!config.buildFonts()) {
+            log.warn("fontconfig fallback could not build fonts from Windows font directory", .{});
+            return null;
+        }
+
+        if (!config.setCurrent()) {
+            log.warn("fontconfig fallback could not set the fallback config as current", .{});
+            return null;
+        }
+
+        log.warn("using Windows fontconfig fallback config for embedded host startup", .{});
+        return config;
+    }
 };
 
 pub const CoreText = struct {

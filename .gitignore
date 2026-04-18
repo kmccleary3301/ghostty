@@ -26,3 +26,7 @@ glad.zip
 
 vgcore.*
 
+# Local Windows probe/build artifacts
+simdutf.lib
+tmp-runtime-probe/
+

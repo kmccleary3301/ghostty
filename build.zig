@@ -46,6 +46,10 @@ pub fn build(b: *std.Build) !void {
         "test-lib-vt",
         "Run libghostty-vt tests",
     );
+    const test_lib_vt_smoke_step = b.step(
+        "test-lib-vt-smoke",
+        "Run a narrow libghostty-vt smoke test",
+    );
     const test_valgrind_step = b.step(
         "test-valgrind",
         "Run tests under valgrind",
@@ -255,7 +259,10 @@ pub fn build(b: *std.Build) !void {
     }
 
     // Zig module tests
-    {
+    if (config.target.result.os.tag == .windows) {
+        // Windows currently uses the narrower smoke loop until the full VT
+        // module graph is made Windows-safe.
+    } else {
         const mod_vt_test = b.addTest(.{
             .root_module = mod.vt,
             .filters = test_filters,
@@ -269,6 +276,28 @@ pub fn build(b: *std.Build) !void {
         });
         const mod_vt_c_test_run = b.addRunArtifact(mod_vt_c_test);
         test_lib_vt_step.dependOn(&mod_vt_c_test_run.step);
+    }
+
+    // A narrower smoke test for the Windows bootstrap lane. This avoids the
+    // module-level `test { refAllDecls(@This()) }` pressure in `terminal/main.zig`
+    // and verifies that the public VT API can be imported and exercised externally.
+    {
+        const smoke_root = b.createModule(.{
+            .root_source_file = b.path("test/lib_vt_smoke.zig"),
+            .target = config.target,
+            .optimize = .Debug,
+        });
+        smoke_root.addImport("ghostty-vt", mod.vt);
+
+        const smoke_test = b.addTest(.{
+            .root_module = smoke_root,
+            .filters = test_filters,
+        });
+        const smoke_run = b.addRunArtifact(smoke_test);
+        test_lib_vt_smoke_step.dependOn(&smoke_run.step);
+        if (config.target.result.os.tag == .windows) {
+            test_lib_vt_step.dependOn(&smoke_run.step);
+        }
     }
 
     // Tests

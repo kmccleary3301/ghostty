@@ -88,6 +88,7 @@ pub const Shape = enum(c_int) {
             ),
 
             .none => void,
+            .windows => void,
         };
     };
 

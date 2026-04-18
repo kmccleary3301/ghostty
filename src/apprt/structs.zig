@@ -51,6 +51,7 @@ pub const Clipboard = enum(Backing) {
         ),
 
         .none => void,
+        .windows => void,
     };
 };
 
@@ -85,6 +86,7 @@ pub const ClipboardRequest = union(ClipboardRequestType) {
         ),
 
         .none => void,
+        .windows => void,
     };
 };
 

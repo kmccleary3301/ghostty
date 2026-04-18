@@ -369,22 +369,28 @@ const DerivedConfig = struct {
             alloc.free(links);
         }
 
+        const keybind = try config.keybind.clone(alloc);
+        const clipboard_codepoint_map = try config.@"clipboard-codepoint-map".clone(alloc);
+        const font_config = try font.SharedGridSet.DerivedConfig.init(alloc, config);
+        const selection_word_chars = try alloc.dupe(u21, config.@"selection-word-chars".codepoints);
+        const key_remaps = try config.@"key-remap".clone(alloc);
+
         return .{
             .original_font_size = config.@"font-size",
-            .keybind = try config.keybind.clone(alloc),
+            .keybind = keybind,
             .abnormal_command_exit_runtime_ms = config.@"abnormal-command-exit-runtime",
             .clipboard_read = config.@"clipboard-read",
             .clipboard_write = config.@"clipboard-write",
             .clipboard_trim_trailing_spaces = config.@"clipboard-trim-trailing-spaces",
             .clipboard_paste_protection = config.@"clipboard-paste-protection",
             .clipboard_paste_bracketed_safe = config.@"clipboard-paste-bracketed-safe",
-            .clipboard_codepoint_map = try config.@"clipboard-codepoint-map".clone(alloc),
+            .clipboard_codepoint_map = clipboard_codepoint_map,
             .copy_on_select = config.@"copy-on-select",
             .right_click_action = config.@"right-click-action",
             .confirm_close_surface = config.@"confirm-close-surface",
             .cursor_click_to_move = config.@"cursor-click-to-move",
             .desktop_notifications = config.@"desktop-notifications",
-            .font = try font.SharedGridSet.DerivedConfig.init(alloc, config),
+            .font = font_config,
             .mouse_interval = config.@"click-repeat-interval" * 1_000_000, // 500ms
             .mouse_hide_while_typing = config.@"mouse-hide-while-typing",
             .mouse_reporting = config.@"mouse-reporting",
@@ -395,7 +401,7 @@ const DerivedConfig = struct {
             .macos_option_as_alt = config.@"macos-option-as-alt",
             .selection_clear_on_copy = config.@"selection-clear-on-copy",
             .selection_clear_on_typing = config.@"selection-clear-on-typing",
-            .selection_word_chars = try alloc.dupe(u21, config.@"selection-word-chars".codepoints),
+            .selection_word_chars = selection_word_chars,
             .vt_kam_allowed = config.@"vt-kam-allowed",
             .wait_after_command = config.@"wait-after-command",
             .window_padding_top = config.@"window-padding-y".top_left,
@@ -413,7 +419,7 @@ const DerivedConfig = struct {
             .notify_on_command_finish = config.@"notify-on-command-finish",
             .notify_on_command_finish_action = config.@"notify-on-command-finish-action",
             .notify_on_command_finish_after = config.@"notify-on-command-finish-after",
-            .key_remaps = try config.@"key-remap".clone(alloc),
+            .key_remaps = key_remaps,
 
             // Assignments happen sequentially so we have to do this last
             // so that the memory is captured from allocs above.
