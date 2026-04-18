@@ -19,6 +19,17 @@
   </p>
 </p>
 
+> [!IMPORTANT]
+> This fork carries substantial **Windows runtime and embedding work** used by the `cmux` parity program in the parent workspace. The additions documented below are real and validated in this fork, but they should not be read as an upstream project-status claim unless and until they are accepted upstream.
+
+<p align="center">
+  <img src="https://img.shields.io/badge/platform-Windows%20runtime%20fork-1d4ed8" alt="Windows runtime fork" />
+  <img src="https://img.shields.io/github/actions/workflow/status/kmccleary3301/ghostty/test.yml?branch=codex%2Fwindows-north-star&label=tests" alt="test workflow" />
+  <img src="https://img.shields.io/badge/embed-libghostty%20Windows-16a34a" alt="Windows libghostty" />
+  <img src="https://img.shields.io/badge/VT-smoke%20coverage-2563eb" alt="VT smoke coverage" />
+  <img src="https://img.shields.io/badge/runtime-Win32-0f766e" alt="Win32 runtime" />
+</p>
+
 ## About
 
 Ghostty is a terminal emulator that differentiates itself by being
@@ -51,6 +62,14 @@ See the [download page](https://ghostty.org/download) on the Ghostty website.
 
 See the [documentation](https://ghostty.org/docs) on the Ghostty website.
 
+## Fork navigation
+
+- [About](#about)
+- [Windows work in this fork](#windows-work-in-this-fork)
+- [Fork map](#fork-map)
+- [Contributing and Developing](#contributing-and-developing)
+- [Roadmap and Status](#roadmap-and-status)
+
 ## Windows work in this fork
 
 This fork carries substantial Windows runtime and embedding work used by the `cmux` parity program in the parent workspace.
@@ -76,6 +95,38 @@ zig build -Dapp-runtime=none -j1
 ```
 
 This section documents fork-specific work only. It should not be read as an upstream project-status claim unless and until those changes are accepted upstream.
+
+## Fork map
+
+```text
+ghostty/
+├─ src/
+│  ├─ apprt/                      # App runtimes, embedding glue, Windows runtime
+│  ├─ renderer/                   # OpenGL/Metal and render-thread logic
+│  ├─ terminal/                   # Terminal core, public VT seam, mouse/input plumbing
+│  ├─ termio/                     # Process spawning and PTY/exec integration
+│  ├─ os/                         # OS-specific helpers such as paths
+│  └─ build/                      # Shared build wiring and dependencies
+├─ include/                       # Public C headers, including embedding API
+├─ test/                          # Smoke and validation tests
+├─ pkg/                           # Vendored and wrapped library packages
+├─ macos/                         # Native macOS app integration
+└─ vendor/                        # Third-party dependencies
+```
+
+### Most relevant fork-specific files
+
+| Path | Why it matters |
+|---|---|
+| [`src/apprt/windows.zig`](./src/apprt/windows.zig) | Win32 runtime path added in this fork |
+| [`include/ghostty.h`](./include/ghostty.h) | Public C embedding surface updated for Windows host payloads |
+| [`src/apprt/embedded.zig`](./src/apprt/embedded.zig) | Windows-capable embedding glue and host GL callbacks |
+| [`src/apprt/runtime.zig`](./src/apprt/runtime.zig) | Runtime selection including the Windows path |
+| [`src/lib_vt.zig`](./src/lib_vt.zig) | Narrowed VT-facing validation seam |
+| [`src/terminal/public_vt.zig`](./src/terminal/public_vt.zig) | Public VT surface for smoke/probe integration |
+| [`test/lib_vt_smoke.zig`](./test/lib_vt_smoke.zig) | Dedicated VT smoke target used during Windows bring-up |
+| [`src/renderer/OpenGL.zig`](./src/renderer/OpenGL.zig) | Windows render/runtime fixes used by the forked path |
+| [`src/termio/Exec.zig`](./src/termio/Exec.zig) | Windows command lifecycle and process execution fixes |
 
 ## Contributing and Developing
 
